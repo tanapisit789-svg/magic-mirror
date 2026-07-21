@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI & AR Magic Mirror Production</title>
+    
+    <!-- 🌟 โหลดขุมพลัง AI ระดับสากล รองรับมือถือทุกรุ่นและ iOS/Android -->
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <script src="https://jsdelivr.net" crossorigin="anonymous"></script>
+    <script src="https://cloudflare.com"></script>
+
+    <style>
+        body {
+            margin: 0; padding: 0; background-color: #000;
+            color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden; height: 100vh; width: 100vw;
+        }
+
+        /* กล้องส่องกระจกเงา */
+        #mirror-view {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; transform: scaleX(-1); z-index: 1;
+        }
+
+        /* เสื้อผ้า AR ขยับตามตัว */
+        #ar-cloth {
+            position: absolute; display: none; pointer-events: none; z-index: 2;
+            transform-origin: top center;
+        }
+
+        /* หน้าต่าง UI ทับบนกระจก */
+        .overlay-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 3; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 30px; box-sizing: border-box;
+        }
+
+        /* กล่องอวตาร AI */
+        .avatar-box {
+            align-self: center; background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ffcc; border-radius: 20px; padding: 15px;
+            text-align: center; width: 85%; max-width: 320px; box-shadow: 0 0 20px #00ffcc;
+        }
+
+        .avatar-face {
+            width: 80px; height: 80px; background: #00ffcc; border-radius: 50%;
+            margin: 0 auto 10px; position: relative;
+        }
+
+        .avatar-mouth {
+            width: 30px; height: 8px; background: #000;
+            position: absolute; bottom: 20px; left: 25px; border-radius: 4px;
+        }
+        
+        .speaking .avatar-mouth { animation: talk 0.2s infinite alternate; }
+        @keyframes talk { 0% { height: 4px; } 100% { height: 18px; } }
+
+        /* แผงปุ่มควบคุมด้านล่าง */
+        .controls { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .btn {
+            background: linear-gradient(45deg, #00ffcc, #0077ff); border: none;
+            color: #000; padding: 12px 25px; font-size: 16px; font-weight: bold;
+            border-radius: 25px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,255,204,0.3);
+            transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); }
+
+        /* หน้าต่างแสดงรูปภาพและคิวอาร์โค้ด */
+        #photo-result {
+            display: none; position: fixed; top: 5%; left: 5%; width: 90%; height: 90%;
+            background: rgba(0,0,0,0.95); border: 3px solid #00ffcc; z-index: 99;
+            border-radius: 20px; padding: 20px; box-sizing: border-box;
+        }
+
+        .result-layout { display: flex; height: 85%; gap: 20px; }
+        .result-left { flex: 2; text-align: center; }
+        .result-right {
+            flex: 1; background: rgba(255,255,255,0.1); border-radius: 15px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 15px;
+        }
+        #captured-image { max-height: 80%; max-width: 100%; border-radius: 10px; }
+
+        /* ปรับดีไซน์อัตโนมัติเมื่อหมุนจอหน้างานเป็นแนวตั้ง 9:16 */
+        @media (orientation: portrait) {
+            .result-layout { flex-direction: column; height: 90%; }
+            #captured-image { max-height: 45vh; }
+            .avatar-box { width: 90%; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 🎥 บังคับปิดเสียงวิดีโอต้นทางเพื่อให้รันเปิดกล้องได้บน iPhone/iPad/Android ทุกรุ่น -->
+    <video id="mirror-view" autoplay playsinline muted></video>
+    <img id="ar-cloth" src="https://ibb.co" alt="AR Cloth">
+
+    <div class="overlay-container">
+        <div class="avatar-box" id="ai-character">
+            <div class="avatar-face" id="avatar-element"><div class="avatar-mouth"></div></div>
+            <div id="ai-status">กระจกวิเศษ: กดปุ่มเพื่อพูดคุย</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn" onclick="startVoiceRecognition()">🗣️ พูดคุย</button>
+            <button class="btn" onclick="takeSnapshot()">📸 ถ่ายรูป</button>
+        </div>
+    </div>
+
+    <div id="photo-result">
+        <div class="result-layout">
+            <div class="result-left">
+                <h3 style="color:#00ffcc; margin: 0 0 10px 0;">✨ ภาพถ่ายกระจกวิเศษ ✨</h3>
+                <img id="captured-image" src="" alt="Result">
+            </div>
+            <div class="result-right">
+                <h3 style="margin:0 0 10px 0;">📱 แชทแชร์โซเชียล</h3>
+                <div id="qrcode-box" style="background:#fff; padding:10px; border-radius:5px;"></div>
+                <p style="font-size:12px; color:#ccc; text-align:center; margin-top:10px;">ยกมือถือสแกนเซฟรูปภาพ</p>
+            </div>
+        </div>
+        <div style="text-align:center; margin-top:10px;">
+            <button class="btn" onclick="closePhoto()">🔙 กลับไปเล่นใหม่</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('mirror-view');
+        const cloth = document.getElementById('ar-cloth');
+        const aiStatus = document.getElementById('ai-status');
+        const avatarElement = document.getElementById('avatar-element');
+
+        // 1. เปิดใช้งานกล้องรอบรับทุกระบบปฏิบัติการ
+        async function initSystem() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" } 
+                });
+                video.srcObject = stream;
+                video.addEventListener('loadeddata', startARTracking);
+            } catch (err) {
+                aiStatus.innerText = "กรุณาเปิดลิงก์แบบ https:// เพื่อก้าวข้ามระบบบล็อกกล้อง";
+            }
+        }
+
+        // 2. ระบบ AI สแกนจัดพิกัดเสื้อผ้าลอยตามตัว
+        function startARTracking() {
+            const pose = new Pose({ locateFile: (file) => `https://jsdelivr.net{file}` });
+            pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+            
+            pose.onResults((results) => {
+                if (!results.poseLandmarks) { cloth.style.display = 'none'; return; }
+                const left = results.poseLandmarks[11];
+                const right = results.poseLandmarks[12];
+
+                if (left.visibility > 0.5 && right.visibility > 0.5) {
+                    const midX = (1 - ((left.x + right.x) / 2)) * window.innerWidth;
+                    const midY = ((left.y + right.y) / 2) * window.innerHeight;
+                    const sWidth = Math.abs(left.x - right.x) * window.innerWidth;
+                    const cWidth = sWidth * 2.1;
+
+                    cloth.style.left = `${midX - (cWidth / 2)}px`;
+                    cloth.style.top = `${midY - 15}px`;
+                    cloth.style.width = `${cWidth}px`;
+                    cloth.style.display = 'block';
+                } else { cloth.style.display = 'none'; }
+            });
+
+            async function frameLoop() {
+                if (!video.paused && !video.ended) { await pose.send({ image: video }); }
+                requestAnimationFrame(frameLoop);
+            }
+            frameLoop();
+        }
+
+        // 3. ระบบฟังเสียงภาษาไทยรอบรับทุกเครือข่าย
+        function startVoiceRecognition() {
+            const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!Speech) { alert("เบราว์เซอร์ไม่รองรับระบบเสียง แนะนำใช้ Chrome หรือ Safari เวอร์ชันอัปเดตครับ"); return; }
+            
+            const rec = new Speech(); rec.lang = 'th-TH';
+            aiStatus.innerText = "กระจกวิเศษ: กำลังฟังเสียงของคุณ...";
+            rec.start();
+
+            rec.onresult = async (e) => {
+                const speechText = e.results[0][0].transcript;
+                aiStatus.innerText = `คุณพูดว่า: "${speechText}"`;
+                
+                // ส่งต่อไปถามสมองหลังบ้าน (Node.js + Gemini API ของคุณ)
+                talkToGeminiBackend(speechText);
+            };
+            rec.onerror = () => { aiStatus.innerText = "กระจกวิเศษ: ไม่ได้ยินเลย ลองกดพูดใหม่อีกครั้งครับ"; };
+        }
+
+        // 4. ส่งข้อความเข้าสมองส่วนกลางคอมพิวเตอร์หน้างาน
+        async function talkToGeminiBackend(text) {
+            aiStatus.innerText = "กระจกวิเศษ: กำลังคิด...";
+            try {
+                // ยิงเชื่อมโยงไปที่ Server หลังบ้านของคุณที่เปิดรันคู่กันไว้
+                const res = await fetch('http://localhost:3000/api/ask-mirror', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: text })
+                });
+                const data = await res.json();
+                executeAIResponse(data.reply);
+            } catch {
+                // แผนสำรองกรณีเครือข่ายหน่วงหรือหลุด (Fallback Mockup Response)
+                executeAIResponse("วันนี้คุณแต่งตัวดูดีออร่าจับมากเลยครับ มาร่วมถ่ายรูปกันเถอะ!");
+            }
+        }
+
+        // 5. สั่งอวตารขยับปากพร้อมเปิดเสียงลำโพง
+        function executeAIResponse(reply) {
+            aiStatus.innerText = `กระจกวิเศษ: "${reply}"`;
+            if ('speechSynthesis' in window) {
+                avatarElement.classList.add('speaking');
+                const speakConfig = new SpeechSynthesisUtterance(reply);
+                speakConfig.lang = 'th-TH'; speakConfig.rate = 1.1;
+                speakConfig.onend = () => avatarElement.classList.remove('speaking');
