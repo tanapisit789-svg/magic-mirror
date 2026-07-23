@@ -197,7 +197,7 @@
             aiStatus.innerText = "กระจกวิเศษ: กำลังคิด...";
             try {
                 // ยิงเชื่อมโยงไปที่ Server หลังบ้านของคุณที่เปิดรันคู่กันไว้
-                const res = await fetch('http://localhost:3000/api/ask-mirror', {
+               const res = await fetch('https://vercel.app', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ question: text })
                 });
